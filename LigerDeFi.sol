@@ -1316,9 +1316,10 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
                 );
             }
             if (!_isExcludedFromMaxHold[to]) {
+                uint256 overallAmount = balanceOf(to).add(amount);
                 require(
-                    balanceOf(to) <= MaxHoldAmount,
-                    "Receiver balance exceeds the MaxHoldAmount."
+                    overallAmount <= MaxHoldAmount,
+                    "Receiver amount exceeds the MaxHoldAmount."
                 );
             }
         }
