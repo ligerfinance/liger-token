@@ -688,32 +688,27 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
     mapping(address => uint256) private _rBalance;
     mapping(address => uint256) private _tBalance;
     mapping(address => mapping(address => uint256)) private _allowances;
-
     mapping(address => bool) private _isExcludedFromFee;
     mapping(address => bool) private _isExcludedFromMaxTx;
     mapping(address => bool) private _isExcludedFromMaxHold;
     mapping(address => bool) private _isExcludedEventFee;
     mapping(address => bool) private _isExcluded;
     address[] private _excluded;
-
     mapping(address => bool) private accHolders;
     address[] private allHolders;
 
     uint256 private constant MAX = ~uint256(0);
-    uint256 private _tTotal = 1000000 * 10**8 * 10**18; //
+    uint256 private _tTotal = 100000 * 10**9 * 10**18;
     uint256 private _rTotal = (MAX - (MAX % _tTotal));
     uint256 private _tFeeTotal;
-
     string private _name = "Liger DeFi";
     string private _symbol = "LIGER";
     uint8 private _decimals = 18;
 
     uint8 public HolderReward = 4;
     uint8 private _previousHolderReward = HolderReward;
-
     uint8 public LiquidityFee = 5;
     uint8 private _previousLiquidityFee = LiquidityFee;
-
     uint8 public TreasuryFee = 1;
     uint8 private _previousTreasuryFee = TreasuryFee;
     address public TreasuryManager;
@@ -747,15 +742,15 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
     );
 
     // max amount of tokens that can be transferred per transaction
-    uint256 public MaxTxAmount = 500 * 10**8 * 10**18;
+    uint256 public MaxTxAmount = 50 * 10**9 * 10**18;
 
     // max amount of token holder can hold per account
-    uint256 public MaxHoldAmount = 500 * 10**8 * 10**18;
+    uint256 public MaxHoldAmount = 50 * 10**9 * 10**18;
 
     // minimum number of tokens in this contract to sent to DEX pool
-    uint256 private numTokensSellToAddToLiquidity = 200 * 10**8 * 10**18;
+    uint256 private numTokensSellToAddToLiquidity = 20 * 10**9 * 10**18;
 
-    event holders(uint256 CurrentHolders);
+    event Holders(uint256 CurrentHolders);
     event UpdateDEXAddress(
         address LigerRouter,
         address LigerPairWBNB,
@@ -1478,7 +1473,7 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
             }
         }
 
-        emit holders(allHolders.length);
+        emit Holders(allHolders.length);
     }
 
     //this method is responsible for taking all fee, if collectFee is true
