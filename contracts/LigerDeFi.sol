@@ -1,24 +1,23 @@
-/**
-    #----------------------LIGER-DEFI-TOKENOMICS----------------------------#
-    #                                                                       #
-    #   5% fee auto add to the liquidity pool when selling                  #
-    #   4% fee auto distribute to all holders as staking reward             #
-    #   1% fee auto transfer to treasury vault for feature project          #
-    #   total 10% fee to be collect after holder transfer or swap           #
-    #   LIGER token will deflate itself in supply with every transaction    #
-    #   50% Supply is burned at start after Liquidity Lock.                 #
-    #                                                                       #    
-    #-----------------------------------------------------------------------#
-    #           #-----------TOKEN-DISTRIBUTION-----------#                  #
-    #           #   TOTAL SUPPLY - 100,000,000,000,000   #                  #    
-    #           # 50%    - Burn Address (Burn Forever)   #                  #
-    #           # 35%    - Liquidity Pool (Locked)       #                  #
-    #           # 5%     - Future Farming Dex (Locked)   #                  #
-    #           # 5%     - Development Team (locked)     #                  #
-    #           # 5%     - Marketing/Airdrop             #                  #
-    #           #----------------------------------------#                  #
-    #-----------------------------------------------------------------------#
- */
+/*********************************************************************************
+ *   #-----------------------LIGER-DEFI-TOKENOMICS---------------------------#   *
+ *   #                                                                       #   *
+ *   #   5% fee auto add to the liquidity pool when selling                  #   *
+ *   #   4% fee auto distribute to all holders as staking reward             #   *
+ *   #   1% fee auto transfer to treasury vault for maintainance             #   *
+ *   #   total 10% fee to be collect after holder transfer or swap           #   *
+ *   #   LIGER token will deflate itself in supply with every transaction    #   *
+ *   #   50% Supply is burned at start after Liquidity Lock.                 #   *
+ *   #                                                                       #   *
+ *   #-----------------------------------------------------------------------#   *
+ *   #             #-----------TOKEN-DISTRIBUTION-----------#                #   *
+ *   #             #   TOTAL SUPPLY - 100,000,000,000,000   #                #   *
+ *   #             # 50%    - Burn Address (Burn Forever)   #                #   *
+ *   #             # 35%    - Liquidity Pool (Locked)       #                #   *
+ *   #             # 10%    - Features Project (Locked)     #                #   *
+ *   #             # 5%     - Development Team              #                #   *
+ *   #             #----------------------------------------#                #   *
+ *   #-----------------------------------------------------------------------#   *
+ ********************************************************************************/
 
 // SPDX-License-Identifier: MIT
 
@@ -722,51 +721,55 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
     address public LigerPairBUSD;
     address private checkLigerPairWBNB;
     address private checkLigerPairBUSD;
-
-    bool inSwapAndLiquify;
+    bool SwapAndLiquifyLock;
     //enable / disable locking `liquidityFee` to DEX
     bool public SwapAndLiquifyEnabled = true;
-    bool private _enableAllFee;
-
+    bool private _enableAllFee = true;
     bool private FeeOnEvent;
+
     uint8 private LiquidityFeeEvent;
     uint8 private RewardFeeEvent;
     uint8 private TreasuryFeeEvent;
-    uint32 private DeadlineEvent;
+    uint256 private DeadlineEvent;
     event DiscountFeeEvent(
         bool FeeOnEvent,
         uint8 LiquidityFeeEvent,
         uint8 RewardFeeEvent,
         uint8 TreasuryFeeEvent,
-        uint32 DeadlineEvent
+        uint256 DeadlineEvent
     );
 
     // max amount of tokens that can be transferred per transaction
-    uint256 public MaxTxAmount = 50 * 10**9 * 10**18;
-
+    uint256 public MaxTxAmount = 5 * 10**9 * 10**18;
     // max amount of token holder can hold per account
-    uint256 public MaxHoldAmount = 50 * 10**9 * 10**18;
-
+    uint256 public MaxHoldAmount = 5 * 10**9 * 10**18;
     // minimum number of tokens in this contract to sent to DEX pool
-    uint256 private numTokensSellToAddToLiquidity = 20 * 10**9 * 10**18;
+    uint256 public MinTokenToAddLiquidity = 5 * 10**9 * 10**18;
 
     event Holders(uint256 CurrentHolders);
+    event TreasuryFeeTransfer(
+        address indexed sender,
+        address indexed TreasuryManager,
+        uint256 TreasuryFeeAmount
+    );
     event UpdateDEXAddress(
-        address LigerRouter,
         address LigerPairWBNB,
-        address LigerPairBUSD
+        address LigerPairBUSD,
+        address LigerRouter
     );
     event SwapAndLiquifyEnabledUpdated(bool Enabled);
-    event SwapAndLiquify(
+    event SwapAndLiquidity(
         uint256 TokensSwapped,
         uint256 BNBReceived,
-        uint256 TokensIntoLiquidity
+        uint256 TokensIntoLiquidity,
+        uint256 LPTokenReceived,
+        address LiquidityManager
     );
 
     modifier lockTheSwap {
-        inSwapAndLiquify = true;
+        SwapAndLiquifyLock = true;
         _;
-        inSwapAndLiquify = false;
+        SwapAndLiquifyLock = false;
     }
 
     constructor(
@@ -796,20 +799,24 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
         LigerRouter = _LigerRouter;
 
         // exclude from fee
-        _isExcludedFromFee[_msgSender()] = true;
+        _isExcludedFromFee[owner()] = true;
         _isExcludedFromFee[address(this)] = true;
         _isExcludedFromFee[BurnAddress] = true;
 
         // exclude from max hold
-        _isExcludedFromMaxHold[_msgSender()] = true;
+        _isExcludedFromMaxHold[owner()] = true;
         _isExcludedFromMaxHold[address(this)] = true;
         _isExcludedFromMaxHold[BurnAddress] = true;
+        _isExcludedFromMaxHold[LigerPairWBNB] = true;
+        _isExcludedFromMaxHold[LigerPairBUSD] = true;
 
         // exclude from max tx
-        _isExcludedFromMaxTx[_msgSender()] = true;
+        _isExcludedFromMaxTx[owner()] = true;
         _isExcludedFromMaxTx[address(this)] = true;
         _isExcludedFromMaxTx[BurnAddress] = true;
         _isExcludedFromMaxTx[address(0)] = true;
+        _isExcludedFromMaxTx[LigerPairWBNB] = true;
+        _isExcludedFromMaxTx[LigerPairBUSD] = true;
 
         emit Transfer(address(0), _msgSender(), _tTotal);
     }
@@ -844,12 +851,16 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
         } else {
             LigerPairBUSD = checkLigerPairBUSD;
         }
+        _isExcludedFromMaxHold[LigerPairWBNB] = true;
+        _isExcludedFromMaxHold[LigerPairBUSD] = true;
+        _isExcludedFromMaxTx[LigerPairWBNB] = true;
+        _isExcludedFromMaxTx[LigerPairBUSD] = true;
         // set the rest of the contract variables
         LigerRouter = _LigerRouter;
         emit UpdateDEXAddress(
-            address(LigerRouter),
             LigerPairWBNB,
-            LigerPairBUSD
+            LigerPairBUSD,
+            address(LigerRouter)
         );
     }
 
@@ -1103,16 +1114,16 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
         LiquidityManager = newLiquidityAddress;
     }
 
-    function setMaxTokenToLiquid(uint256 newMaxTokenToLiduid)
+    function setMinTokenToLiquid(uint256 newMinTokenToLiquid)
         external
         onlyOwner()
     {
-        numTokensSellToAddToLiquidity = newMaxTokenToLiduid;
+        MinTokenToAddLiquidity = newMinTokenToLiquid;
     }
 
-    function setSwapAndLiquifyEnabled(bool _enabled) public onlyOwner {
-        SwapAndLiquifyEnabled = _enabled;
-        emit SwapAndLiquifyEnabledUpdated(_enabled);
+    function setSwapAndLiquifyEnabled(bool enabled) public onlyOwner {
+        SwapAndLiquifyEnabled = enabled;
+        emit SwapAndLiquifyEnabledUpdated(enabled);
     }
 
     function setDiscountFeeEvent(
@@ -1144,7 +1155,7 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
             uint8 Liquidity_FeeEvent,
             uint8 Reward_FeeEvent,
             uint8 Treasury_FeeEvent,
-            uint32 Deadline_Event
+            uint256 Deadline_Event
         )
     {
         FeeOn_Event = FeeOnEvent;
@@ -1302,9 +1313,8 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
         require(from != address(0), "BEP20: transfer from the zero address");
         require(to != address(0), "BEP20: transfer to the zero address");
         require(amount > 0, "Transfer amount must be greater than zero");
-
         if (from != owner() && to != owner()) {
-            if (!_isExcludedFromMaxTx[from] && !_isExcludedFromMaxTx[to]) {
+            if (!_isExcludedFromMaxTx[from]) {
                 require(
                     amount <= MaxTxAmount,
                     "Transfer amount exceeds the MaxTxAmount."
@@ -1314,26 +1324,23 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
                 uint256 overallAmount = balanceOf(to).add(amount);
                 require(
                     overallAmount <= MaxHoldAmount,
-                    "Receiver amount exceeds the MaxHoldAmount."
+                    "Amount to Receive exceeds the MaxHoldAmount."
                 );
             }
         }
-
         uint256 contractTokenBalance = balanceOf(address(this));
         bool overMinTokenBalance = contractTokenBalance >=
-            numTokensSellToAddToLiquidity;
-
+            MinTokenToAddLiquidity;
         if (
             overMinTokenBalance &&
-            !inSwapAndLiquify &&
+            !SwapAndLiquifyLock &&
             from != LigerPairWBNB &&
             SwapAndLiquifyEnabled
         ) {
-            contractTokenBalance = numTokensSellToAddToLiquidity;
+            contractTokenBalance = MinTokenToAddLiquidity;
             //add liquidity
             swapAndLiquify(contractTokenBalance);
         }
-
         //transfer amount, it will take HolderReward, LiquidityFee & TreasuryFee
         _tokenTransfer(from, to, amount);
     }
@@ -1353,9 +1360,19 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
         uint256 newBalance = address(this).balance.sub(initialBalance);
 
         // add liquidity to LigerPairWBNB
-        addLiquidity(otherHalf, newBalance);
+        (
+            uint256 amountToken,
+            uint256 amountWBNB,
+            uint256 LPToken
+        ) = addLiquidity(otherHalf, newBalance);
 
-        emit SwapAndLiquify(half, newBalance, otherHalf);
+        emit SwapAndLiquidity(
+            half,
+            amountWBNB,
+            amountToken,
+            LPToken,
+            LiquidityManager
+        );
     }
 
     function swapTokensForBNB(uint256 tokenAmount) private {
@@ -1376,12 +1393,23 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
         );
     } // 0 is accept any amount of BNB
 
-    function addLiquidity(uint256 tokenAmount, uint256 bnbAmount) private {
+    function addLiquidity(uint256 tokenAmount, uint256 bnbAmount)
+        private
+        returns (
+            uint256,
+            uint256,
+            uint256
+        )
+    {
         // approve token transfer to cover all possible scenarios
         _approve(address(this), address(LigerRouter), tokenAmount);
 
         // add the liquidity
-        LigerRouter.addLiquidityETH{value: bnbAmount}(
+        (
+            uint256 amountToken,
+            uint256 amountWBNB,
+            uint256 liquidity
+        ) = LigerRouter.addLiquidityETH{value: bnbAmount}(
             address(this),
             tokenAmount,
             0,
@@ -1389,6 +1417,7 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
             LiquidityManager,
             block.timestamp
         );
+        return (amountToken, amountWBNB, liquidity);
     } //0 is for slippage is unavoidable
 
     //Call this function to enable all fee
@@ -1396,7 +1425,7 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
         HolderReward = _previousHolderReward;
         LiquidityFee = _previousLiquidityFee;
         TreasuryFee = _previousTreasuryFee;
-        inSwapAndLiquify = true;
+        SwapAndLiquifyEnabled = true;
         _enableAllFee = true;
         emit SwapAndLiquifyEnabledUpdated(true);
     }
@@ -1410,13 +1439,13 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
         HolderReward = 0;
         LiquidityFee = 0;
         TreasuryFee = 0;
-        inSwapAndLiquify = false;
+        SwapAndLiquifyEnabled = false;
         _enableAllFee = false;
         emit SwapAndLiquifyEnabledUpdated(false);
     }
 
-    //Distribute Fee setting
-    function distributeFee(bool setting) private {
+    //Standard Fee setting
+    function standardFee(bool setting) private {
         if (_enableAllFee) {
             if (setting) {
                 HolderReward = _previousHolderReward;
@@ -1433,15 +1462,11 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
         }
     }
 
-    function EventFee(bool eventFeeOn) private {
-        if (eventFeeOn) {
+    function EventFee() private {
+        if (_enableAllFee) {
             HolderReward = RewardFeeEvent;
             LiquidityFee = LiquidityFeeEvent;
             TreasuryFee = TreasuryFeeEvent;
-        } else {
-            HolderReward = _previousHolderReward;
-            LiquidityFee = _previousLiquidityFee;
-            TreasuryFee = _previousTreasuryFee;
         }
     }
 
@@ -1449,6 +1474,7 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
         if (!accHolders[recipient]) {
             accHolders[recipient] = true;
             allHolders.push(recipient);
+            emit Holders(allHolders.length + 1);
         }
 
         if (accHolders[sender]) {
@@ -1464,16 +1490,14 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
                 for (uint256 x = 0; x < allHolders.length; x++) {
                     if (allHolders[x] == sender) {
                         allHolders[x] = allHolders[allHolders.length - 1];
-                        _tBalance[sender] = 0;
                         accHolders[sender] = false;
                         allHolders.pop();
                         break;
                     }
                 }
+                emit Holders(allHolders.length + 1);
             }
         }
-
-        emit Holders(allHolders.length);
     }
 
     //this method is responsible for taking all fee, if collectFee is true
@@ -1484,27 +1508,31 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
     ) private {
         if (FeeOnEvent && _isExcludedEventFee[sender]) {
             if (block.timestamp <= DeadlineEvent) {
-                EventFee(true);
+                FeeOnEvent = true;
+                EventFee();
             } else {
                 FeeOnEvent = false;
-                EventFee(false);
+                standardFee(true);
             }
         } else {
             //indicates if fee should be deducted from transfer
-            distributeFee(true);
+            standardFee(true);
         }
-
-        uint256 _treasuryFee = calculateTreasuryFee(amount);
-        uint256 afterAmount = amount.sub(_treasuryFee);
-        bool TreasuryBool = true;
-
+        uint256 afterAmount;
+        uint256 _treasuryFee;
         //if any account belongs to _isExcludedFromFee account then remove the fee
         if (_isExcludedFromFee[sender] || _isExcludedFromFee[recipient]) {
-            distributeFee(false);
+            standardFee(true);
+            standardFee(false);
             afterAmount = amount;
-            TreasuryBool = false;
+        } else {
+            if (TreasuryFee != 0) {
+                _treasuryFee = calculateTreasuryFee(amount);
+                afterAmount = amount.sub(_treasuryFee);
+            } else {
+                afterAmount = amount;
+            }
         }
-
         if (_isExcluded[sender] && !_isExcluded[recipient]) {
             _transferFromExcluded(sender, recipient, afterAmount);
         } else if (!_isExcluded[sender] && _isExcluded[recipient]) {
@@ -1516,14 +1544,14 @@ contract LigerDeFi is Context, ILigerBEP20, Ownable {
         } else {
             _transferStandard(sender, recipient, afterAmount);
         }
-
-        if (TreasuryFee != 0 && TreasuryBool) {
+        if (FeeOnEvent) standardFee(true);
+        if (TreasuryFee != 0) {
+            standardFee(false);
             //Send treasury fee to Treasury Vault
             _transferStandard(sender, TreasuryManager, _treasuryFee);
+            emit TreasuryFeeTransfer(sender, TreasuryManager, _treasuryFee);
         }
-
-        distributeFee(true);
-
+        standardFee(true);
         // estimate current holders
         countHolders(sender, recipient);
     }

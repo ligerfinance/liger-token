@@ -1,0 +1,11 @@
+truffle-config.js
+#solc 0.6.12
+#using optimizer 8888 true
+
+build/
+bin/
+migrations/
+
+node_modules/
+package-lock.json
+package.json
